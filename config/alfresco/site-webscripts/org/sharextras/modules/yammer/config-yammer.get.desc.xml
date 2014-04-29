@@ -1,0 +1,5 @@
+<webscript>
+  <shortname>config-yammer</shortname>
+  <description>Configuration dialog for the Yammer dashlet</description>
+  <url>/modules/yammer/config</url>
+</webscript>

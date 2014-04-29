@@ -4,7 +4,7 @@
 
 /**
 * Extras root namespace.
-* 
+*
 * @namespace Extras
 */
 if (typeof Extras == "undefined" || !Extras)
@@ -14,7 +14,7 @@ if (typeof Extras == "undefined" || !Extras)
 
 /**
 * Extras dashlet namespace.
-* 
+*
 * @namespace Extras.dashlet
 */
 if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
@@ -24,7 +24,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
 
 /**
  * Yammer dashboard component.
- * 
+ *
  * @class Extras.dashlet.Yammer
  * @namespace Extras.dashlet
  * @author Will Abson
@@ -45,7 +45,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
 
    /**
     * Dashboard Yammer constructor.
-    * 
+    *
     * @param {String} htmlId The HTML id of the parent element
     * @return {Extras.dashlet.Yammer} The new component instance
     * @constructor
@@ -68,11 +68,15 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        */
       options:
       {
+        componentId: null,
+        network: null,
+        group: null,
+        groupId: null
       },
 
       /**
        * OAuth helper for connecting to the Yammer service
-       * 
+       *
        * @property oAuth
        * @type Extras.OAuthHelper
        * @default null
@@ -81,7 +85,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
 
       /**
        * Fired by YUI when parent element is available for scripting
-       * 
+       *
        * @method onReady
        */
       onReady: function Yammer_onReady()
@@ -92,17 +96,17 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           this.widgets.connect = Dom.get(this.id + "-connect");
           this.widgets.utils = Dom.get(this.id + "-utils");
           this.widgets.toolbar = Dom.get(this.id + "-toolbar");
-          
+
           // Set up the clear credentials link
           Event.addListener(this.id + "-link-disconnect", "click", this.onDisconnectClick, this, true);
-          
+
           // Set up the new post link
           Event.addListener(this.id + "-link-new-post", "click", this.onNewPostClick, this, true);
-          
+
           // Delegate setting up the favorite/unfavorite and post reply links
           Event.delegate(this.widgets.messages, "click", this.onPostFavoriteClick, "a.yammer-favorite-link, a.yammer-favorite-link-on", this, true);
           Event.delegate(this.widgets.messages, "click", this.onPostReplyClick, "a.yammer-reply-link", this, true);
-          
+
           // Set up the Connect button
           this.widgets.connectButton = new YAHOO.widget.Button(
              this.id + "-btn-connect",
@@ -115,14 +119,14 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                 }
              }
           );
-          
+
           this.oAuth = new Extras.OAuthHelper().setOptions({
               providerId: "yammer",
               endpointId: "yammer"
           });
-          
+
           this.oAuth.init({
-              successCallback: { 
+              successCallback: {
                   fn: function Yammer_onReady_oAuthInit()
                   {
                       if (!this.oAuth.hasToken())
@@ -137,27 +141,25 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                           // Run the success handler directly to load the messages
                           this.onAuthSuccess();
                       }
-                  }, 
+                  },
                   scope: this
               },
-              failureCallback: { 
+              failureCallback: {
                   fn: function Yammer_onReady_oAuthInit() {
                       // Failed to init the oauth helper
                       Alfresco.util.PopupManager.displayMessage({
                           text: this.msg("error.initOAuth")
                       });
-                  }, 
+                  },
                   scope: this
               }
           });
-
-          
       },
-      
+
       /**
        * Callback method used to prompt the user for a verification code to confirm that the
        * application has been granted access
-       * 
+       *
        * @method onRequestTokenGranted
        * @param {object} obj Object literal containing properties
        *    authToken {string} the value of the temporary token granted
@@ -168,14 +170,14 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           var authToken = obj.authToken,
               callbackFn = obj.onComplete,
               approvalUrl = "https://www.yammer.com/oauth/authorize?oauth_token=" + authToken;
-          
+
           // Open a new window with the oauth confirmation page
           window.open(approvalUrl);
-          
+
           Alfresco.util.PopupManager.getUserInput({
               title: this.msg("label.verification"),
               text: this.msg("label.verificationPrompt"),
-              callback: 
+              callback:
               {
                   fn: function Yammer_onRequestTokenGranted_verifierCB(value, obj) {
                       if (value != null && value != "")
@@ -187,11 +189,11 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               }
           });
       },
-      
+
       /**
        * Callback method to use to set up the dashlet when it is known that the authentication
        * has completed successfully
-       * 
+       *
        * @method onAuthSuccess
        */
       onAuthSuccess: function Yammer_onAuthSuccess()
@@ -204,13 +206,111 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           // Enable the Disconnect button and toolbar
           Dom.setStyle(this.widgets.utils, "display", "block");
           Dom.setStyle(this.widgets.toolbar, "display", "block");
-          
           this.loadMessages();
+          this.fetchGroupId();
       },
-      
+
+      onConfigYammerClick: function Yammer_onConfigYammerClick(e) {
+         Event.stopEvent(e);
+
+         if (!this.configDialog)
+         {
+            this.configDialog = new Alfresco.module.SimpleDialog(this.id + "-configDialog").setOptions(
+            {
+               width: "50em",
+               templateUrl: Alfresco.constants.URL_SERVICECONTEXT + "modules/yammer/config",
+               onSuccess:
+               {
+                  fn: function Yammer_onConfigFeed_callback(response)
+                  {
+
+                     // Response
+                     var dataObj = response.config.dataObj;
+
+                     if (dataObj.network == null) {
+                       network = "";
+                     } else {
+                       network = dataObj.network;
+                     }
+
+                     if (dataObj.group == null) {
+                       group = "";
+                     } else {
+                       group = dataObj.group;
+                     }
+
+                     this.options.network = network;
+                     this.options.group = group;
+
+                     Dom.get(this.id + "-title").innerHTML = "Configure Yammer";
+                     this.onAuthSuccess();
+                  },
+                  scope: this
+               },
+               doSetupFormsValidation:
+               {
+                  fn: function SavedSearch_doSetupForm_callback(form)
+                  {
+                     Dom.get(this.configDialog.id + "-network").value = this.options.network;
+                     Dom.get(this.configDialog.id + "-group").value = this.options.group;
+                  },
+                  scope: this
+               }
+            });
+         }
+
+         this.configDialog.setOptions(
+         {
+            actionUrl: Alfresco.constants.URL_SERVICECONTEXT + "modules/dashlet/config/" + this.options.componentId
+         }).show();
+      },
+
+      fetchGroupId: function Yammer_getGroupId() {
+        this.oAuth.request({
+            url: "/api/v1/users/current.json",
+            method: "GET",
+            successCallback: {
+                fn: function(o) {
+                    if (o.responseText == "") {
+                        Alfresco.util.PopupManager.displayMessage({
+                            text: this.msg("error.post-empty-resp")
+                        });
+                    }
+                    else {
+                        if (typeof o.json == "object") {
+                          var homeTabs = o.json["web_preferences"]["home_tabs"];
+                          for (var i = 0; i < homeTabs.length;i++) {
+                              var tab = homeTabs[i];
+                              if (this.options.group !== null && this.options.group !== undefined && this.options.group !== "") {
+                                if (tab.name.toLowerCase() === this.options.group.toLowerCase()) {
+                                  this.options.groupId = tab.group_id;
+                                }
+                              }
+                          }
+                        }
+                        else {
+                            Alfresco.util.PopupManager.displayMessage({
+                                text: this.msg("Could not get the group ID")
+                            });
+                        }
+                    }
+                },
+                scope: this
+            },
+            failureCallback: {
+                fn: function() {
+                    Alfresco.util.PopupManager.displayMessage({
+                        text: this.msg("Could not get the group ID")
+                    });
+                },
+                scope: this
+            }
+        });
+      },
+
       /**
        * Callback method when a problem occurs with the authentication
-       * 
+       *
        * @method onAuthFailure
        */
       onAuthFailure: function Yammer_onAuthFailure()
@@ -219,17 +319,23 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               text: this.msg("error.general")
           });
       },
-      
+
       /**
        * Load messages from Yammer to display on the dashboard
-       * 
+       *
        * @method loadMessages
        */
       loadMessages: function Yammer_loadMessages()
       {
           // Get the latest messages from the server
+          var msgEndpoint = "/api/v1/messages.json"
+          if (this.options.group !== null && this.options.group !== undefined && this.options.group !== "") {
+            var grp = this.options.group;
+            msgEndpoint = "/api/v1/messages/in_group/" + grp + ".json";
+          }
+
           this.oAuth.request({
-              url: "/api/v1/messages.json",
+              url: msgEndpoint,
               successCallback: {
                   fn: function(o) {
                       if (o.responseText == "")
@@ -265,10 +371,10 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               }
           });
       },
-      
+
       /**
        * Render dashlet title
-       * 
+       *
        * @method renderTitle
        */
       renderTitle: function Yammer_renderTitle(json)
@@ -283,7 +389,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
 
       /**
        * Insert links into message text to highlight users, hashtags and links
-       * 
+       *
        * @method _formatMessage
        * @private
        * @param {string} text The plain message
@@ -309,10 +415,10 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                /https?:\/\/\S+[^\s.]/gm, "<a href=\"$&\">$&</a>").replace(refsRe, formatRef);
          return text;
       },
-      
+
       /**
        * Generate messages HTML
-       * 
+       *
        * @method renderMessages
        * @private
        */
@@ -344,54 +450,54 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   uname = u ? u.full_name : null;
                   userLink = "<a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\" class=\"theme-color-1\">" + $html(uname) + "</a>";
                   postedLink = "<a href=\"" + url + "\"><span class=\"yammer-message-date\" title=\"" + postedOn + "\">" + this._relativeTime(new Date(postedOn)) + "</span><\/a>";
-                  html += "<div class=\"yammer-message detail-list-item\">" + "<div class=\"yammer-message-hd\">" + 
-                  "<div class=\"user-icon\"><a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\"><img src=\"" + $html(mugshotUri) + "\" alt=\"" + $html(uname) + "\" width=\"48\" height=\"48\" /></a></div>" + 
+                  html += "<div class=\"yammer-message detail-list-item\">" + "<div class=\"yammer-message-hd\">" +
+                  "<div class=\"user-icon\"><a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\"><img src=\"" + $html(mugshotUri) + "\" alt=\"" + $html(uname) + "\" width=\"48\" height=\"48\" /></a></div>" +
                   "</div><div class=\"yammer-message-bd\">" + "<span class=\"screen-name\">" + userLink + "</span> " +
                   this._formatMessage(message.body.parsed, references) + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
                   this.msg("text.msgDetails", postedLink, client) + " <span class=\"yammer-actions\"><a href=\"#\" class=\"yammer-favorite-link" +
-                  (Alfresco.util.arrayContains(favorites, message.id) ? "-on" : "") + "\" id=\"" + 
-                  this.id + "-favorite-link-" + message.id + "\"><span>" + 
-                  this.msg("link.yammer-favorite") + "</span></a><a href=\"#\" class=\"yammer-reply-link\" id=\"" + 
-                  this.id + "-reply-link-" + message.id + "\"><span>" + 
+                  (Alfresco.util.arrayContains(favorites, message.id) ? "-on" : "") + "\" id=\"" +
+                  this.id + "-favorite-link-" + message.id + "\"><span>" +
+                  this.msg("link.yammer-favorite") + "</span></a><a href=\"#\" class=\"yammer-reply-link\" id=\"" +
+                  this.id + "-reply-link-" + message.id + "\"><span>" +
                   this.msg("link.yammer-reply") + "</span></a>" + "</span></div>" + "</div>";
               }
           }
           return html;
       },
-      
+
       /**
        * Render Yammer messages
-       * 
+       *
        * @method renderMessages
        */
       renderMessages: function Yammer_renderMessages(json)
       {
           this.widgets.messages.innerHTML = this._messagesHTML(json);
       },
-      
+
       /**
        * Append additional Yammer messages
-       * 
+       *
        * @method appendMessages
        */
       appendMessages: function Yammer_appendMessages(json)
       {
           this.widgets.messages.innerHTML += this._messagesHTML(json);
       },
-      
+
       /**
        * Prepend additional Yammer messages
-       * 
+       *
        * @method prependMessages
        */
       prependMessages: function Yammer_prependMessages(json)
       {
           this.widgets.messages.innerHTML = this._messagesHTML(json) + this.widgets.messages.innerHTML;
       },
-      
+
       /**
        * Get relative time where possible, otherwise just return a simple string representation of the suppplied date
-       * 
+       *
        * @method _relativeTime
        * @private
        * @param d {date} Date object
@@ -400,7 +506,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       {
           return typeof(Alfresco.util.relativeTime) === "function" ? Alfresco.util.relativeTime(d) : Alfresco.util.formatDate(d)
       },
-      
+
       /**
        * Post a message
        *
@@ -409,10 +515,17 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        * @param titleId {int} Message ID to use for title text (optional)
        * @param promptId {int} Message ID to use for prompt text (optional)
        */
-      _postMessage: function Yammer__postMessage(replyToId, titleId, promptId)
-      {
-         titleId = titleId || this.msg("label.new-post");
-         promptId = promptId || this.msg("label.new-post-prompt");
+      _postMessage: function Yammer__postMessage(replyToId, titleId, promptId) {
+        titleId = titleId || this.msg("label.new-post");
+        promptId = promptId || this.msg("label.new-post-prompt");
+        groupId = null;
+
+        var msgEndpoint = "/api/v1/messages.json";
+        if (this.options.group !== null && this.options.group !== undefined && this.options.group !== "") {
+          var grp = this.options.group;
+          groupId = this.options.groupId;
+        }
+
          Alfresco.util.PopupManager.getUserInput({
              title: this.msg(titleId),
              text: this.msg(promptId),
@@ -426,10 +539,13 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                          };
                          if (replyToId)
                              dataObj.replied_to_id = replyToId;
-                         
+
+                         if (groupId)
+                           dataObj.group_id = groupId;
+
                          // Post the update
                          this.oAuth.request({
-                             url: "/api/v1/messages.json",
+                             url: msgEndpoint,
                              method: "POST",
                              dataObj: dataObj,
                              requestContentType: Alfresco.util.Ajax.FORM,
@@ -472,7 +588,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
              }
          });
       },
-      
+
 
       /**
        * YUI WIDGET EVENT HANDLERS
@@ -494,16 +610,16 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          if (!this.oAuth.isAuthorized()) // Double-check we are still not connected
          {
              this.oAuth.requestToken({
-                 successCallback: { 
-                     fn: this.onAuthSuccess, 
+                 successCallback: {
+                     fn: this.onAuthSuccess,
                      scope: this
                  },
-                 failureCallback: { 
-                     fn: this.onAuthFailure, 
+                 failureCallback: {
+                     fn: this.onAuthFailure,
                      scope: this
                  },
-                 requestTokenHandler:  { 
-                     fn: this.onRequestTokenGranted, 
+                 requestTokenHandler:  {
+                     fn: this.onRequestTokenGranted,
                      scope: this
                  }
              });
@@ -513,7 +629,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
              this.onAuthSuccess();
          }
       },
-      
+
       /**
        * Click handler for Disconnect link
        *
@@ -524,9 +640,9 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       {
          // Prevent default action
          Event.stopEvent(e);
-         
+
          var me = this;
-         
+
          Alfresco.util.PopupManager.displayPrompt({
              title: this.msg("title.disconnect"),
              text: this.msg("label.disconnect"),
@@ -558,7 +674,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
              ]
          });
       },
-      
+
       /**
        * Click handler for New Post link
        *
@@ -571,7 +687,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          Event.stopEvent(e);
          this._postMessage(null);
       },
-      
+
       /**
        * Click handler for Post Reply link
        *
@@ -585,7 +701,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          var replyToId = matchEl.id.substring(matchEl.id.lastIndexOf("-") + 1);
          this._postMessage(replyToId, "label.reply", "label.reply-prompt");
       },
-      
+
       /**
        * Click handler for Favorite link
        *
@@ -596,7 +712,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       {
          // Prevent default action
          Event.stopEvent(e);
-         
+
          var msgId = matchEl.id.substring(matchEl.id.lastIndexOf("-") + 1), // Message id
              isFavorite = Dom.hasClass(matchEl, "yammer-favorite-link-on"),
              method = !isFavorite ? "POST" : "DELETE",
@@ -605,7 +721,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
              newClass = !isFavorite ? "yammer-favorite-link-on" : "yammer-favorite-link",
              oldClass = !isFavorite ? "yammer-favorite-link" : "yammer-favorite-link-on",
              errMsgId = !isFavorite ? "error.favorite" : "error.unfavorite";
-         
+
          this.oAuth.request({
              url: "/api/v1/messages/liked_by/current.json" + urlParams,
              method: method,
@@ -628,7 +744,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
              }
          });
       },
-      
+
    });
-   
+
 })();
